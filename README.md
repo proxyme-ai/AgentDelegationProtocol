@@ -130,8 +130,8 @@ The Agent Delegation Protocol enables secure delegation of limited authority fro
 graph LR
     U[User]
     A[AI Agent]
-    AS[Authorization Server (AS)]
-    RS[Resource Server (RS)]
+    AS[Authorization Server]
+    RS[Resource Server]
     U -- "delegates authority" --> A
     U -- "authenticates at" --> AS
     A -- "requests tokens" --> AS
