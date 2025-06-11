@@ -1,11 +1,12 @@
 """LangChain agent example integrating the delegation protocol with an EspoCRM API."""
 from langchain.agents import Tool, initialize_agent
 from langchain.llms import OpenAI
+import os
 import requests
 
 AUTH_URL = "http://localhost:5000"
-RESOURCE_URL = "http://localhost:6000/data"
-ESPOCRM_BASE = "https://your-espocrm.example/api/v1"  # Replace with your EspoCRM URL
+ESPOCRM_BASE = os.getenv("ESPOCRM_BASE", "https://your-espocrm.example/api/v1")
+ESPOCRM_API_KEY = os.getenv("ESPOCRM_API_KEY", "<espocrm_api_key>")
 
 
 def fetch_access_token(scope: str = "crm:read") -> str:
@@ -27,7 +28,7 @@ def query_espocrm(endpoint: str) -> dict:
     token = fetch_access_token()
     headers = {
         "Authorization": f"Bearer {token}",
-        "EspoCRM-Api-Key": "<espocrm_api_key>",  # TODO: replace with your key
+        "EspoCRM-Api-Key": ESPOCRM_API_KEY,
     }
     resp = requests.get(f"{ESPOCRM_BASE}/{endpoint}", headers=headers)
     resp.raise_for_status()

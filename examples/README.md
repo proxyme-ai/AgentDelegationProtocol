@@ -31,7 +31,12 @@ python ../resource_server.py
 export OPENAI_API_KEY=<your-openai-key>
 ```
 
-4. Update `ESPOCRM_BASE` and the `EspoCRM-Api-Key` placeholder in `langchain_espo_agent.py` with your EspoCRM details.
+4. Set your EspoCRM connection details (URL and API key) as environment variables:
+
+```bash
+export ESPOCRM_BASE=https://your-espocrm.example/api/v1
+export ESPOCRM_API_KEY=<your-espocrm-key>
+```
 
 5. Run the agent:
 

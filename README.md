@@ -44,6 +44,9 @@ python resource_server.py
 python ai_agent.py
 ```
 
+For a LangChain-based integration with an external ERP (EspoCRM), see
+[`examples/README.md`](examples/README.md).
+
 ## ✅ Expected Flow
 
 - The AI agent requests a **delegation token** for a user (`alice`).
@@ -70,6 +73,7 @@ Subsequent attempts to use the token will be rejected.
 ├── resource_server.py     # Validates tokens and protects resources
 ├── ai_agent.py            # Client agent simulation
 ├── README.md              # This file
+├── examples/              # LangChain + EspoCRM integration
 ```
 
 ## 🧪 Extensions & TODO
