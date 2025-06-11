@@ -77,6 +77,8 @@ Usage examples live in the `examples/` directory:
 - `langchain_espo_agent.py` – demonstrates a LangChain agent calling an API.
 - `okta_integration.md` – walkthrough for integrating the protocol with Okta.
 - `keycloak_integration.md` – example Keycloak setup with a GitHub Actions workflow.
+=======
+
 
 ## 🧪 Extensions & TODO
 - [ ] Add refresh token support
@@ -136,8 +138,8 @@ The Agent Delegation Protocol enables secure delegation of limited authority fro
 graph LR
     U[User]
     A[AI Agent]
-    AS[Authorization Server (AS)]
-    RS[Resource Server (RS)]
+    AS[Authorization Server]
+    RS[Resource Server]
     U -- "delegates authority" --> A
     U -- "authenticates at" --> AS
     A -- "requests tokens" --> AS
