@@ -44,3 +44,4 @@ jobs:
           curl -fsS -u admin:password \
             http://localhost:8080/api/v1/Account | \
             grep -q "Sample Account"
+
