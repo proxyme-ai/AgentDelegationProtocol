@@ -127,7 +127,7 @@ The Agent Delegation Protocol enables secure delegation of limited authority fro
 
 ### 1. High-Level Architecture
 ```mermaid
-flowchart LR
+graph LR
     U[User]
     A[AI Agent]
     AS[Authorization Server (AS)]
