@@ -1,0 +1,31 @@
+name: keycloak-test
+on: [push, pull_request]
+jobs:
+  keycloak:
+    runs-on: ubuntu-latest
+    services:
+      keycloak:
+        image: quay.io/keycloak/keycloak:latest
+        ports:
+          - 8080:8080
+        env:
+          KEYCLOAK_ADMIN: admin
+          KEYCLOAK_ADMIN_PASSWORD: admin
+        options: >-
+          --health-cmd "curl -f http://localhost:8080 || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        command: start-dev
+    steps:
+      - uses: actions/checkout@v3
+      - name: Wait for Keycloak
+        run: |
+          for i in {1..30}; do
+            if curl -s http://localhost:8080/realms/master/.well-known/openid-configuration > /dev/null; then
+              break
+            fi
+            sleep 2
+          done
+      - name: Smoke test
+        run: curl -fsS http://localhost:8080/realms/master/.well-known/openid-configuration

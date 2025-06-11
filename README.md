@@ -72,6 +72,12 @@ Subsequent attempts to use the token will be rejected.
 ├── README.md              # This file
 ```
 
+## 📖 Examples
+Usage examples live in the `examples/` directory:
+- `langchain_espo_agent.py` – demonstrates a LangChain agent calling an API.
+- `okta_integration.md` – walkthrough for integrating the protocol with Okta.
+- `keycloak_integration.md` – example Keycloak setup with a GitHub Actions workflow.
+
 ## 🧪 Extensions & TODO
 - [ ] Add refresh token support
 - [ ] Add UI for user consent
