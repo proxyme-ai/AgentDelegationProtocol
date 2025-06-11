@@ -1,31 +1,30 @@
+# yamllint disable rule:line-length rule:truthy
+---
 name: keycloak-test
-on: [push, pull_request]
+on:
+  - push
+  - pull_request
 jobs:
   keycloak:
     runs-on: ubuntu-latest
-    services:
-      keycloak:
-        image: quay.io/keycloak/keycloak:latest
-        ports:
-          - 8080:8080
-        env:
-          KEYCLOAK_ADMIN: admin
-          KEYCLOAK_ADMIN_PASSWORD: admin
-        options: >-
-          --health-cmd "curl -f http://localhost:8080 || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        command: start-dev
     steps:
       - uses: actions/checkout@v3
+      - name: Start Keycloak
+        run: |
+          docker run -d --name keycloak -p 8080:8080 \
+            -e KEYCLOAK_ADMIN=admin \
+            -e KEYCLOAK_ADMIN_PASSWORD=admin \
+            quay.io/keycloak/keycloak:latest start-dev
       - name: Wait for Keycloak
         run: |
+          URL="http://localhost:8080/realms/master/.well-known/openid-configuration"
           for i in {1..30}; do
-            if curl -s http://localhost:8080/realms/master/.well-known/openid-configuration > /dev/null; then
+            if curl -s "$URL" > /dev/null; then
               break
             fi
             sleep 2
           done
       - name: Smoke test
-        run: curl -fsS http://localhost:8080/realms/master/.well-known/openid-configuration
+        run: |
+          URL="http://localhost:8080/realms/master/.well-known/openid-configuration"
+          curl -fsS "$URL"
