@@ -14,7 +14,14 @@ jobs:
           docker run -d --name mariadb -e MARIADB_ROOT_PASSWORD=password mariadb:latest
       - name: Start EspoCRM
         run: |
-          docker run -d --name espocrm --link mariadb:mariadb -p 8080:80 espocrm/espocrm:latest
+          docker run -d --name espocrm --link mariadb:mariadb \
+            -e ESPOCRM_DATABASE_HOST=mariadb \
+            -e ESPOCRM_DATABASE_USER=root \
+            -e ESPOCRM_DATABASE_PASSWORD=password \
+            -e ESPOCRM_ADMIN_USERNAME=admin \
+            -e ESPOCRM_ADMIN_PASSWORD=password \
+            -e ESPOCRM_SITE_URL=http://localhost:8080 \
+            -p 8080:80 espocrm/espocrm:latest
       - name: Wait for EspoCRM
         run: |
           for i in {1..60}; do
@@ -26,3 +33,14 @@ jobs:
       - name: Smoke test
         run: |
           curl -fsS http://localhost:8080/
+      - name: Add sample account
+        run: |
+          curl -fsS -u admin:password \
+            -H "Content-Type: application/json" \
+            -d '{"name": "Sample Account"}' \
+            http://localhost:8080/api/v1/Account
+      - name: API retrieval test
+        run: |
+          curl -fsS -u admin:password \
+            http://localhost:8080/api/v1/Account | \
+            grep -q "Sample Account"
