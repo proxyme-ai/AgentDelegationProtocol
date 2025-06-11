@@ -1,4 +1,4 @@
-# Agent Delegation Protocol - Python Implementation
+# Agent Delegation Protocol
 
 This repository implements a complete prototype of the **Agent Delegation Protocol** inspired by the paper _"Authenticated Delegation and Authorized AI Agents"_.
 
