@@ -27,6 +27,7 @@ pip install Flask PyJWT requests cryptography
 
 ## 🚀 Running the System
 
+
 Start each service in its own terminal, or run `./run_local.sh` to set up a virtual environment and launch everything automatically.
 
 ### Running with Docker
@@ -39,6 +40,9 @@ docker run --rm -p 5000:5000 -p 6000:6000 delegation-demo
 ```
 
 The container starts both servers and executes the demo agent.
+
+Start each service in its own terminal:
+Alternatively, run `./run_local.sh` to set up a virtual environment and launch all components automatically.
 
 
 ### 1. Authorization Server
