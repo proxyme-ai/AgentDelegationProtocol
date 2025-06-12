@@ -12,6 +12,7 @@ import base64
 app = Flask(__name__)
 JWT_SECRET = 'jwt-signing-secret'
 AGENTS_FILE = os.environ.get("AGENTS_FILE", "agents.json")
+USERS_FILE = os.environ.get("USERS_FILE", "users.json")
 KEYCLOAK_URL = os.environ.get("KEYCLOAK_URL")
 KEYCLOAK_REALM = os.environ.get("KEYCLOAK_REALM", "master")
 KEYCLOAK_CLIENT_ID = os.environ.get("KEYCLOAK_CLIENT_ID")
@@ -19,6 +20,7 @@ KEYCLOAK_CLIENT_SECRET = os.environ.get("KEYCLOAK_CLIENT_SECRET")
 REDIRECT_URI = os.environ.get("REDIRECT_URI", "http://localhost:5000/callback")
 
 DEFAULT_AGENT = {"agent-client-id": {"name": "CalendarAgent"}}
+DEFAULT_USER = {"alice": "password123"}
 
 
 def load_agents():
@@ -36,8 +38,22 @@ def save_agents(data):
         json.dump(data, f)
 
 
+def load_users():
+    if os.path.exists(USERS_FILE):
+        with open(USERS_FILE) as f:
+            return json.load(f)
+    with open(USERS_FILE, "w") as f:
+        json.dump(DEFAULT_USER, f)
+    return DEFAULT_USER.copy()
+
+
+def save_users(data):
+    with open(USERS_FILE, "w") as f:
+        json.dump(data, f)
+
+
 AGENTS = load_agents()
-USERS = {"alice": "password123"}
+USERS = load_users()
 ACTIVE_TOKENS = []
 REVOKED_TOKENS = set()
 
@@ -54,6 +70,20 @@ def register():
 
     AGENTS[client_id] = {'name': name}
     save_agents(AGENTS)
+    return jsonify({'status': 'registered'}), 201
+
+
+@app.route('/register_user', methods=['POST'])
+def register_user():
+    data = request.get_json(force=True, silent=True) or {}
+    username = data.get('username')
+    password = data.get('password')
+    if not username or not password:
+        return jsonify({'error': 'missing username or password'}), 400
+    if username in USERS:
+        return jsonify({'error': 'user exists'}), 400
+    USERS[username] = password
+    save_users(USERS)
     return jsonify({'status': 'registered'}), 201
 
 @app.route('/authorize')

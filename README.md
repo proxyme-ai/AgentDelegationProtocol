@@ -85,6 +85,17 @@ curl -X POST -d "token=<access_token>" http://localhost:5000/revoke
 ```
 Subsequent attempts to use the token will be rejected.
 
+## 👥 User Registration
+The authorization server includes one default user (`alice`).
+Additional users can be added via a JSON POST request:
+```bash
+curl -X POST -H "Content-Type: application/json" \
+     -d '{"username": "bob", "password": "secret"}' \
+     http://localhost:5000/register_user
+```
+After registering, the new username can be supplied as the `user` parameter when
+calling `/authorize`.
+
 ## 📂 File Structure
 ```
 .

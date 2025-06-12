@@ -10,6 +10,12 @@ json.dump({"agent-client-id": {"name": "CalendarAgent"}}, temp_agents_file)
 temp_agents_file.close()
 os.environ["AGENTS_FILE"] = temp_agents_file.name
 
+# Temporary users file so tests can register and authenticate users
+temp_users_file = tempfile.NamedTemporaryFile(mode="w+", delete=False)
+json.dump({"alice": "password123"}, temp_users_file)
+temp_users_file.close()
+os.environ["USERS_FILE"] = temp_users_file.name
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import pytest
@@ -26,6 +32,7 @@ def servers():
     res_srv.shutdown()
     auth_srv.shutdown()
     os.remove(temp_agents_file.name)
+    os.remove(temp_users_file.name)
 
 @pytest.fixture(autouse=True)
 def reset_state():
@@ -33,3 +40,4 @@ def reset_state():
     auth_server.REVOKED_TOKENS.clear()
     # reload agents from persistent file to ensure isolation
     auth_server.AGENTS = auth_server.load_agents()
+    auth_server.USERS = auth_server.load_users()
