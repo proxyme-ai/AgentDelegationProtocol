@@ -4,3 +4,6 @@ requests==2.32.2
 cryptography==45.0.4
 
 pytest==8.2.0
+
+# Frontend dependencies managed via npm
+# react, react-dom, react-router-dom, react-markdown

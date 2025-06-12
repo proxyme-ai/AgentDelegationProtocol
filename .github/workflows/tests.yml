@@ -12,6 +12,9 @@ jobs:
       USERS_FILE: /tmp/users.json
     steps:
       - uses: actions/checkout@v3
+      - name: Install Node
+        run: |
+          apt-get update && apt-get install -y nodejs npm
       - name: Initialize sample agent data
         run: |
           echo '{"agent-client-id": {"name": "CalendarAgent"}}' > "$AGENTS_FILE"
@@ -19,5 +22,9 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-      - name: Run tests
+          cd frontend && npm ci
+      - name: Run frontend tests
+        run: |
+          cd frontend && npm test
+      - name: Run python tests
         run: pytest -v
