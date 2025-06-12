@@ -3,9 +3,10 @@ from flask import Flask, request, jsonify
 import jwt
 from datetime import datetime
 import requests
+import os
 
 app = Flask(__name__)
-INTROSPECT_URL = "http://localhost:5000/introspect"
+INTROSPECT_URL = os.getenv("INTROSPECT_URL", "http://localhost:5000/introspect")
 
 @app.route('/data')
 def data():
