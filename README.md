@@ -22,7 +22,7 @@ It demonstrates how to securely delegate authority from a human user to an AI ag
 
 Install required packages:
 ```bash
-pip install Flask PyJWT requests
+pip install Flask PyJWT requests cryptography
 ```
 
 ## 🚀 Running the System
@@ -83,7 +83,6 @@ Usage examples live in the `examples/` directory:
 ## 🧪 Extensions & TODO
 - [ ] Add refresh token support
 - [ ] Add UI for user consent
-- [ ] Integrate PKCE & Proof-of-Possession (DPoP)
 
 ## 📚 Reference
 - [Authenticated Delegation and Authorized AI Agents (arXiv)](https://arxiv.org/abs/2501.09674)
@@ -92,7 +91,7 @@ Usage examples live in the `examples/` directory:
 
 
 
-## 🔧Protocal Specification
+## 🔧 Protocol Specification
 
 # Agent Delegation Protocol 
 
@@ -231,7 +230,7 @@ sequenceDiagram
 - Short token lifetimes, with optional refresh flow
 - Explicit binding between `user`, `agent`, and `scope`
 - Revocation endpoint invalidates issued tokens
-- Optionally support DPoP or mTLS for proof of possession
+- Implements DPoP for proof of possession (optional mTLS also supported)
 
 ---
 
@@ -242,7 +241,7 @@ sequenceDiagram
 - Use `requests` for agent and RS communication
 
 ```bash
-pip install Flask PyJWT requests
+pip install Flask PyJWT requests cryptography
 ```
 
 See full working implementation in the following files:
