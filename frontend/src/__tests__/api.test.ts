@@ -11,4 +11,3 @@ describe('fetchJSON', () => {
     expect(fetchSpy).toHaveBeenCalledWith(BASE_URL + '/demo', undefined);
   });
 });
-
