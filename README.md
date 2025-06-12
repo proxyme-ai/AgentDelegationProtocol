@@ -60,6 +60,12 @@ python resource_server.py
 python ai_agent.py
 ```
 
+### 4. Demo Frontend
+```bash
+python demo_frontend.py
+```
+Visit `http://localhost:7000/` in your browser to see the protocol steps and results.
+
 ## ✅ Expected Flow
 
 - The AI agent requests a **delegation token** for a user (`alice`).
