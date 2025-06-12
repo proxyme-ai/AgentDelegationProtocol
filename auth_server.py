@@ -1,5 +1,10 @@
 # === File: auth_server.py ===
-from flask import Flask, request, jsonify
+import os
+import secrets
+from urllib.parse import urlencode
+
+import requests
+from flask import Flask, request, jsonify, redirect
 from datetime import datetime, timedelta
 import jwt
 
@@ -10,24 +15,74 @@ USERS = {"alice": "password123"}
 ACTIVE_TOKENS = []
 REVOKED_TOKENS = set()
 
+KEYCLOAK_URL = os.environ.get("KEYCLOAK_URL", "http://localhost:8080")
+KEYCLOAK_REALM = os.environ.get("KEYCLOAK_REALM", "master")
+KEYCLOAK_CLIENT_ID = os.environ.get("KEYCLOAK_CLIENT_ID", "test-client")
+KEYCLOAK_CLIENT_SECRET = os.environ.get("KEYCLOAK_CLIENT_SECRET", "secret")
+REDIRECT_URI = "http://localhost:5000/callback"
+
+PENDING_AUTH = {}
+ID_TOKENS = {}
+
 @app.route('/authorize')
 def authorize():
-    user = request.args.get('user')
     client_id = request.args.get('client_id')
     scope = request.args.get('scope', '')
 
-    if user not in USERS:
-        return "User not found", 403
     if client_id not in AGENTS:
         return "Agent not registered", 403
 
+    state = secrets.token_urlsafe(16)
+    PENDING_AUTH[state] = {
+        "client_id": client_id,
+        "scope": scope,
+    }
+
+    query = urlencode({
+        "client_id": KEYCLOAK_CLIENT_ID,
+        "response_type": "code",
+        "scope": "openid",
+        "redirect_uri": REDIRECT_URI,
+        "state": state,
+    })
+    return redirect(
+        f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/auth?{query}"
+    )
+
+
+@app.route('/callback')
+def callback():
+    code = request.args.get('code')
+    state = request.args.get('state')
+    if not code or state not in PENDING_AUTH:
+        return "Invalid callback", 400
+
+    pending = PENDING_AUTH.pop(state)
+    token_res = requests.post(
+        f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token",
+        data={
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": REDIRECT_URI,
+            "client_id": KEYCLOAK_CLIENT_ID,
+            "client_secret": KEYCLOAK_CLIENT_SECRET,
+        },
+    )
+    token_res.raise_for_status()
+    id_token = token_res.json().get("id_token")
+    if not id_token:
+        return "No id token", 400
+
+    claims = jwt.decode(id_token, options={"verify_signature": False})
+    ID_TOKENS[claims["sub"]] = id_token
+
     delegation = {
         "iss": "http://localhost:5000",
-        "sub": client_id,
-        "delegator": user,
-        "scope": scope.split(),
+        "sub": pending["client_id"],
+        "delegator": claims["sub"],
+        "scope": pending["scope"].split(),
         "exp": datetime.utcnow() + timedelta(minutes=10),
-        "iat": datetime.utcnow()
+        "iat": datetime.utcnow(),
     }
     delegation_token = jwt.encode(delegation, JWT_SECRET, algorithm="HS256")
     return jsonify({"delegation_token": delegation_token})
@@ -41,6 +96,9 @@ def token():
         return "Delegation token expired", 403
     except jwt.InvalidTokenError:
         return "Invalid delegation token", 403
+
+    if delegation["delegator"] not in ID_TOKENS:
+        return "User not authenticated", 403
 
     access_claim = {
         "iss": "http://localhost:5000",
