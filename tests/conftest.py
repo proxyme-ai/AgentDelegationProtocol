@@ -7,7 +7,12 @@ from tests.utils import start_server
 
 @pytest.fixture(scope='session', autouse=True)
 def servers():
-    # start auth and resource servers for tests
+    """Start auth and resource servers unless using external services."""
+    if os.getenv("USE_COMPOSE_SERVICES"):
+        # Services assumed to be started externally, e.g. via docker compose
+        yield
+        return
+
     auth_srv = start_server(auth_server.app, port=5000)
     res_srv = start_server(resource_server.app, port=6000)
     yield

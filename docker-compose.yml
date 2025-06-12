@@ -1,0 +1,18 @@
+version: '3'
+services:
+  auth:
+    image: python:3.11
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: sh -c "pip install -r requirements.txt && python auth_server.py"
+    ports:
+      - "5000:5000"
+  resource:
+    image: python:3.11
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: sh -c "pip install -r requirements.txt && python resource_server.py"
+    ports:
+      - "6000:6000"

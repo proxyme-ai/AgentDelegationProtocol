@@ -9,9 +9,15 @@ jobs:
       image: python:3.11
     steps:
       - uses: actions/checkout@v3
+      - name: Install Docker Compose
+        run: |
+          apt-get update
+          apt-get install -y docker-compose-plugin
+      - name: Start services
+        run: docker compose up -d
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
           pip install pytest
       - name: Run tests
-        run: pytest -v
+        run: USE_COMPOSE_SERVICES=1 pytest -v
