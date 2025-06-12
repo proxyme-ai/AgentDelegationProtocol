@@ -5,13 +5,16 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
-    container:
-      image: python:3.11
     steps:
       - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
           pip install pytest
+      - name: Start services
+        run: docker compose up -d
       - name: Run tests
-        run: pytest -v
+        run: USE_COMPOSE_SERVICES=1 pytest -v
