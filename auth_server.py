@@ -1,20 +1,32 @@
 # === File: auth_server.py ===
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, redirect
 from datetime import datetime, timedelta
 import jwt
 import json
 import os
+import requests
+from urllib.parse import urlencode
 
 app = Flask(__name__)
 JWT_SECRET = 'jwt-signing-secret'
 AGENTS_FILE = os.environ.get("AGENTS_FILE", "agents.json")
+KEYCLOAK_URL = os.environ.get("KEYCLOAK_URL")
+KEYCLOAK_REALM = os.environ.get("KEYCLOAK_REALM", "master")
+KEYCLOAK_CLIENT_ID = os.environ.get("KEYCLOAK_CLIENT_ID")
+KEYCLOAK_CLIENT_SECRET = os.environ.get("KEYCLOAK_CLIENT_SECRET")
+REDIRECT_URI = os.environ.get("REDIRECT_URI", "http://localhost:5000/callback")
+
+DEFAULT_AGENT = {"agent-client-id": {"name": "CalendarAgent"}}
 
 
 def load_agents():
     if os.path.exists(AGENTS_FILE):
         with open(AGENTS_FILE) as f:
             return json.load(f)
-    return {}
+    # initialize file with default agent if missing
+    with open(AGENTS_FILE, "w") as f:
+        json.dump(DEFAULT_AGENT, f)
+    return DEFAULT_AGENT.copy()
 
 
 def save_agents(data):
@@ -44,14 +56,26 @@ def register():
 
 @app.route('/authorize')
 def authorize():
-    user = request.args.get('user')
     client_id = request.args.get('client_id')
     scope = request.args.get('scope', '')
 
-    if user not in USERS:
-        return "User not found", 403
     if client_id not in AGENTS:
         return "Agent not registered", 403
+
+    if KEYCLOAK_URL:
+        state = f"{client_id}|{scope}"
+        query = urlencode({
+            "client_id": KEYCLOAK_CLIENT_ID,
+            "response_type": "code",
+            "scope": "openid profile",
+            "redirect_uri": REDIRECT_URI,
+            "state": state,
+        })
+        return redirect(f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/auth?{query}")
+
+    user = request.args.get('user')
+    if user not in USERS:
+        return "User not found", 403
 
     delegation = {
         "iss": "http://localhost:5000",
@@ -60,6 +84,49 @@ def authorize():
         "scope": scope.split(),
         "exp": datetime.utcnow() + timedelta(minutes=10),
         "iat": datetime.utcnow()
+    }
+    delegation_token = jwt.encode(delegation, JWT_SECRET, algorithm="HS256")
+    return jsonify({"delegation_token": delegation_token})
+
+@app.route('/callback')
+def callback():
+    if not KEYCLOAK_URL:
+        return "Keycloak not configured", 404
+
+    code = request.args.get('code')
+    state = request.args.get('state', '')
+    if not code or not state:
+        return "Invalid request", 400
+
+    if '|' in state:
+        client_id, scope = state.split('|', 1)
+    else:
+        client_id, scope = state, ''
+
+    if client_id not in AGENTS:
+        return "Agent not registered", 403
+
+    token_res = requests.post(
+        f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token",
+        data={
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": REDIRECT_URI,
+            "client_id": KEYCLOAK_CLIENT_ID,
+            "client_secret": KEYCLOAK_CLIENT_SECRET,
+        },
+    )
+    token_res.raise_for_status()
+    id_token = token_res.json().get("id_token")
+    id_claims = jwt.decode(id_token, options={"verify_signature": False})
+
+    delegation = {
+        "iss": "http://localhost:5000",
+        "sub": client_id,
+        "delegator": id_claims["sub"],
+        "scope": scope.split(),
+        "exp": datetime.utcnow() + timedelta(minutes=10),
+        "iat": datetime.utcnow(),
     }
     delegation_token = jwt.encode(delegation, JWT_SECRET, algorithm="HS256")
     return jsonify({"delegation_token": delegation_token})
