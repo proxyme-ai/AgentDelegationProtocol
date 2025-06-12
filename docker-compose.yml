@@ -1,0 +1,27 @@
+version: "3"
+services:
+  auth_server:
+    build: .
+    command: python auth_server.py
+    ports:
+      - "5000:5000"
+
+  resource_server:
+    build: .
+    command: python resource_server.py
+    ports:
+      - "6000:6000"
+    depends_on:
+      - auth_server
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: http://auth_server:5000
+    ports:
+      - "8080:80"
+    depends_on:
+      - auth_server
+      - resource_server
+

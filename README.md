@@ -41,6 +41,23 @@ docker run --rm -p 5000:5000 -p 6000:6000 delegation-demo
 
 The container starts both servers and executes the demo agent.
 
+To build the production React UI, use the Dockerfile in `frontend/`:
+
+```bash
+cd frontend
+docker build -t delegation-frontend \
+  --build-arg VITE_API_BASE_URL=http://localhost:5000 .
+docker run --rm -p 8080:80 delegation-frontend
+```
+
+Set `VITE_API_BASE_URL` to the URL of the Python backend so the frontend can
+communicate with the API. A sample `docker-compose.yml` is provided to run all
+services together.
+
+```bash
+docker-compose up --build
+```
+
 Start each service in its own terminal:
 Alternatively, run `./run_local.sh` to set up a virtual environment and launch all components automatically.
 
