@@ -9,6 +9,9 @@ jobs:
       image: python:3.11
     steps:
       - uses: actions/checkout@v3
+      - name: Initialize sample agent data
+        run: |
+          echo '{"agent-client-id": {"name": "CalendarAgent"}}' > agents.json
       - name: Install dependencies
         run: |
           pip install -r requirements.txt

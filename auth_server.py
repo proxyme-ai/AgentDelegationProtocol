@@ -2,13 +2,45 @@
 from flask import Flask, request, jsonify
 from datetime import datetime, timedelta
 import jwt
+import json
+import os
 
 app = Flask(__name__)
 JWT_SECRET = 'jwt-signing-secret'
-AGENTS = {"agent-client-id": {"name": "CalendarAgent"}}
+AGENTS_FILE = os.environ.get("AGENTS_FILE", "agents.json")
+
+
+def load_agents():
+    if os.path.exists(AGENTS_FILE):
+        with open(AGENTS_FILE) as f:
+            return json.load(f)
+    return {}
+
+
+def save_agents(data):
+    with open(AGENTS_FILE, "w") as f:
+        json.dump(data, f)
+
+
+AGENTS = load_agents()
 USERS = {"alice": "password123"}
 ACTIVE_TOKENS = []
 REVOKED_TOKENS = set()
+
+
+@app.route('/register', methods=['POST'])
+def register():
+    data = request.get_json(force=True, silent=True) or {}
+    client_id = data.get('client_id')
+    name = data.get('name')
+    if not client_id or not name:
+        return jsonify({'error': 'missing client_id or name'}), 400
+    if client_id in AGENTS:
+        return jsonify({'error': 'client exists'}), 400
+
+    AGENTS[client_id] = {'name': name}
+    save_agents(AGENTS)
+    return jsonify({'status': 'registered'}), 201
 
 @app.route('/authorize')
 def authorize():

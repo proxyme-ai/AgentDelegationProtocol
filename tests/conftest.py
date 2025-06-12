@@ -18,3 +18,5 @@ def servers():
 def reset_state():
     auth_server.ACTIVE_TOKENS.clear()
     auth_server.REVOKED_TOKENS.clear()
+    # reload agents from persistent file to ensure isolation
+    auth_server.AGENTS = auth_server.load_agents()
