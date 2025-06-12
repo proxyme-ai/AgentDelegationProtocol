@@ -64,7 +64,8 @@ python ai_agent.py
 ```bash
 python demo_frontend.py
 ```
-Visit `http://localhost:7000/` in your browser to see the protocol steps and results.
+Visit `http://localhost:7000/` in your browser and click **Start Demo** to trigger the
+authorization, token exchange, and resource calls. The resulting JSON will appear on the page.
 
 ## ✅ Expected Flow
 
