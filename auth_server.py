@@ -2,6 +2,8 @@
 from flask import Flask, request, jsonify
 from datetime import datetime, timedelta
 import jwt
+import hashlib
+import base64
 
 app = Flask(__name__)
 JWT_SECRET = 'jwt-signing-secret'
@@ -15,6 +17,8 @@ def authorize():
     user = request.args.get('user')
     client_id = request.args.get('client_id')
     scope = request.args.get('scope', '')
+    code_challenge = request.args.get('code_challenge')
+    challenge_method = request.args.get('code_challenge_method', 'plain')
 
     if user not in USERS:
         return "User not found", 403
@@ -27,20 +31,33 @@ def authorize():
         "delegator": user,
         "scope": scope.split(),
         "exp": datetime.utcnow() + timedelta(minutes=10),
-        "iat": datetime.utcnow()
+        "iat": datetime.utcnow(),
     }
+    if code_challenge:
+        delegation["code_challenge"] = code_challenge
+        delegation["code_challenge_method"] = challenge_method
     delegation_token = jwt.encode(delegation, JWT_SECRET, algorithm="HS256")
     return jsonify({"delegation_token": delegation_token})
 
 @app.route('/token', methods=['POST'])
 def token():
     token_str = request.form.get('delegation_token')
+    code_verifier = request.form.get('code_verifier')
     try:
         delegation = jwt.decode(token_str, JWT_SECRET, algorithms=["HS256"])
     except jwt.ExpiredSignatureError:
         return "Delegation token expired", 403
     except jwt.InvalidTokenError:
         return "Invalid delegation token", 403
+
+    # PKCE verification if challenge present
+    challenge = delegation.get("code_challenge")
+    if challenge:
+        expected = base64.urlsafe_b64encode(
+            hashlib.sha256(code_verifier.encode()).digest()
+        ).decode().rstrip("=")
+        if expected != challenge:
+            return "Invalid code verifier", 403
 
     access_claim = {
         "iss": "http://localhost:5000",

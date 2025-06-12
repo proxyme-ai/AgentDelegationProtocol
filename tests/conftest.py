@@ -3,7 +3,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import pytest
 import auth_server
 import resource_server
-from tests.utils import start_server
+from tests.utils import start_server, DPoPKey
 
 @pytest.fixture(scope='session', autouse=True)
 def servers():
@@ -18,3 +18,8 @@ def servers():
 def reset_state():
     auth_server.ACTIVE_TOKENS.clear()
     auth_server.REVOKED_TOKENS.clear()
+
+
+@pytest.fixture(scope="session")
+def dpop_key():
+    return DPoPKey()
