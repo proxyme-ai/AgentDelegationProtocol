@@ -28,6 +28,7 @@ pip install Flask PyJWT requests cryptography
 ## 🚀 Running the System
 
 Start each service in its own terminal:
+Alternatively, run `./run_local.sh` to set up a virtual environment and launch all components automatically.
 
 ### 1. Authorization Server
 ```bash
