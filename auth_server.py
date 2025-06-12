@@ -6,6 +6,8 @@ import json
 import os
 import requests
 from urllib.parse import urlencode
+import hashlib
+import base64
 
 app = Flask(__name__)
 JWT_SECRET = 'jwt-signing-secret'
@@ -58,6 +60,8 @@ def register():
 def authorize():
     client_id = request.args.get('client_id')
     scope = request.args.get('scope', '')
+    code_challenge = request.args.get('code_challenge')
+    code_challenge_method = request.args.get('code_challenge_method', 'plain')
 
     if client_id not in AGENTS:
         return "Agent not registered", 403
@@ -83,7 +87,9 @@ def authorize():
         "delegator": user,
         "scope": scope.split(),
         "exp": datetime.utcnow() + timedelta(minutes=10),
-        "iat": datetime.utcnow()
+        "iat": datetime.utcnow(),
+        "code_challenge": code_challenge,
+        "code_challenge_method": code_challenge_method
     }
     delegation_token = jwt.encode(delegation, JWT_SECRET, algorithm="HS256")
     return jsonify({"delegation_token": delegation_token})
@@ -140,6 +146,21 @@ def token():
         return "Delegation token expired", 403
     except jwt.InvalidTokenError:
         return "Invalid delegation token", 403
+
+    challenge = delegation.get("code_challenge")
+    challenge_method = delegation.get("code_challenge_method", "plain")
+    code_verifier = request.form.get("code_verifier")
+    if challenge and not code_verifier:
+        return "Missing code verifier", 403
+    if challenge and code_verifier:
+        if challenge_method == "S256":
+            digest = hashlib.sha256(code_verifier.encode()).digest()
+            encoded = base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
+            if encoded != challenge:
+                return "Invalid code verifier", 403
+        else:
+            if code_verifier != challenge:
+                return "Invalid code verifier", 403
 
     access_claim = {
         "iss": "http://localhost:5000",
