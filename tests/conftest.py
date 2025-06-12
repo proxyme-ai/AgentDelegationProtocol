@@ -1,12 +1,16 @@
 import os, sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import pytest
+os.environ["USE_KEYCLOAK"] = "true"
 import auth_server
 import resource_server
 from tests.utils import start_server
 
 @pytest.fixture(scope='session', autouse=True)
 def servers():
+    # enable keycloak integration for tests
+    auth_server.config.USE_KEYCLOAK = True
+    auth_server.USE_KEYCLOAK = True
     # start auth and resource servers for tests
     auth_srv = start_server(auth_server.app, port=5000)
     res_srv = start_server(resource_server.app, port=6000)
@@ -18,3 +22,5 @@ def servers():
 def reset_state():
     auth_server.ACTIVE_TOKENS.clear()
     auth_server.REVOKED_TOKENS.clear()
+    auth_server.PENDING_AUTH.clear()
+    auth_server.ID_TOKENS.clear()

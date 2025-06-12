@@ -30,6 +30,8 @@ pip install Flask PyJWT requests
 Start each service in its own terminal:
 
 ### 1. Authorization Server
+Set `USE_KEYCLOAK=true` in the environment or edit `config.py` to enable
+Keycloak-based login. Without it, a simple in-memory user store is used.
 ```bash
 python auth_server.py
 ```
