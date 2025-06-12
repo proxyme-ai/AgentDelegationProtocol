@@ -33,3 +33,38 @@ def test_token_exchange_returns_access_token():
     decoded = jwt.decode(access_token, JWT_SECRET, algorithms=['HS256'])
     assert decoded['sub'] == 'alice'
     assert decoded['actor'] == 'agent-client-id'
+
+
+def test_token_exchange_missing_verifier():
+    r = requests.get(f'{BASE_URL}/authorize', params={
+        'user': 'alice',
+        'client_id': 'agent-client-id',
+        'scope': 'read:data',
+        'code_challenge': 'testchallenge',
+        'code_challenge_method': 'plain'
+    })
+    delegation_token = r.json()['delegation_token']
+
+    r = requests.post(f'{BASE_URL}/token', data={'delegation_token': delegation_token})
+    assert r.status_code == 403
+    assert r.text == 'Missing code verifier'
+
+
+def test_token_exchange_plain_verifier():
+    verifier = 'simple'
+    r = requests.get(f'{BASE_URL}/authorize', params={
+        'user': 'alice',
+        'client_id': 'agent-client-id',
+        'scope': 'read:data',
+        'code_challenge': verifier,
+        'code_challenge_method': 'plain'
+    })
+    delegation_token = r.json()['delegation_token']
+
+    r = requests.post(f'{BASE_URL}/token', data={
+        'delegation_token': delegation_token,
+        'code_verifier': verifier
+    })
+    assert r.status_code == 200
+    assert 'access_token' in r.json()
+
