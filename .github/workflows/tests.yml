@@ -7,11 +7,13 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: python:3.11
+    env:
+      AGENTS_FILE: /tmp/agents.json
     steps:
       - uses: actions/checkout@v3
       - name: Initialize sample agent data
         run: |
-          echo '{"agent-client-id": {"name": "CalendarAgent"}}' > agents.json
+          echo '{"agent-client-id": {"name": "CalendarAgent"}}' > "$AGENTS_FILE"
       - name: Install dependencies
         run: |
           pip install -r requirements.txt

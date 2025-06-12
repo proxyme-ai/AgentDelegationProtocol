@@ -1,5 +1,17 @@
-import os, sys
+import os
+import sys
+import json
+import tempfile
+
+# Create a temporary agents file and set the environment variable BEFORE
+# importing the auth_server module so that it loads the correct file.
+temp_agents_file = tempfile.NamedTemporaryFile(mode="w+", delete=False)
+json.dump({"agent-client-id": {"name": "CalendarAgent"}}, temp_agents_file)
+temp_agents_file.close()
+os.environ["AGENTS_FILE"] = temp_agents_file.name
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 import pytest
 import auth_server
 import resource_server
@@ -13,6 +25,7 @@ def servers():
     yield
     res_srv.shutdown()
     auth_srv.shutdown()
+    os.remove(temp_agents_file.name)
 
 @pytest.fixture(autouse=True)
 def reset_state():
