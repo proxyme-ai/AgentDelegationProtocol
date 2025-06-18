@@ -17,17 +17,19 @@ export default function DelegationsList() {
   return (
     <div className="p-4 space-y-2">
       <h1 className="text-xl font-bold">Delegations</h1>
-      <ul className="space-y-2">
+      <div className="space-y-2">
         {delegations.map((d) => (
-          <li key={d.id} className="border p-2 flex justify-between">
-            <span>{d.agent}</span>
-            <span className="space-x-2">
-              <button className="bg-primary text-white px-2" onClick={() => act(d.id, approveDelegation)}>Approve</button>
-              <button className="bg-red-500 text-white px-2" onClick={() => act(d.id, denyDelegation)}>Deny</button>
-            </span>
-          </li>
+          <div key={d.id} className="card bg-base-100 shadow">
+            <div className="card-body p-4 flex-row items-center justify-between">
+              <span>{d.agent}</span>
+              <span className="space-x-2">
+                <button className="btn btn-primary btn-sm" onClick={() => act(d.id, approveDelegation)}>Approve</button>
+                <button className="btn btn-error btn-sm" onClick={() => act(d.id, denyDelegation)}>Deny</button>
+              </span>
+            </div>
+          </div>
         ))}
-      </ul>
+      </div>
     </div>
   );
 }

@@ -9,8 +9,10 @@ export default function Docs() {
   }, []);
 
   return (
-    <div className="prose p-4">
-      <ReactMarkdown>{md}</ReactMarkdown>
+    <div className="p-4">
+      <div className="prose card bg-base-100 shadow p-4">
+        <ReactMarkdown>{md}</ReactMarkdown>
+      </div>
     </div>
   );
 }
