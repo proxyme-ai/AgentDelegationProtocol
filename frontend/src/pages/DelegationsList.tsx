@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
 import { getDelegations, approveDelegation, denyDelegation } from '../services/api';
+import type { Delegation } from '../types.ts';
 
 export default function DelegationsList() {
-  const [delegations, setDelegations] = useState<any[]>([]);
+  const [delegations, setDelegations] = useState<Delegation[]>([]);
 
   const load = () => getDelegations().then(setDelegations);
 
   useEffect(() => { load(); }, []);
 
-  const act = async (id: string, fn: (id: string) => Promise<any>) => {
+  const act = async (id: string, fn: (id: string) => Promise<Delegation>) => {
     await fn(id);
     await load();
   };

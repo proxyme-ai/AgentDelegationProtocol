@@ -7,7 +7,7 @@ vi.mock('../services/api');
 
 const delegations = [{ id: '1', agent: 'agent1', status: 'pending' }];
 
-(api.getDelegations as any).mockResolvedValue(delegations);
+vi.mocked(api.getDelegations).mockResolvedValue(delegations);
 
 describe('Dashboard', () => {
   it('renders pending delegations', async () => {
