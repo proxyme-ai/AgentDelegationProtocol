@@ -5,7 +5,7 @@ describe('fetchJSON', () => {
   it('prefixes requests with BASE_URL', async () => {
     const mockResponse = { ok: true, json: () => Promise.resolve({}) } as Response;
     const fetchSpy = vi.fn().mockResolvedValue(mockResponse);
-    // @ts-ignore
+    // @ts-expect-error - assign mock to global
     global.fetch = fetchSpy;
     await fetchJSON('/demo');
     expect(fetchSpy).toHaveBeenCalledWith(BASE_URL + '/demo', undefined);

@@ -12,8 +12,8 @@ export default function NewAgentForm() {
       await createAgent({ name });
       setMessage('Agent created');
       setName('');
-    } catch (err: any) {
-      setMessage(err.message);
+    } catch (err: unknown) {
+      setMessage(err instanceof Error ? err.message : String(err));
     }
   };
 

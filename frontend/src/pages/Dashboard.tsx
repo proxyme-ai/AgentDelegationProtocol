@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { getDelegations } from '../services/api';
+import type { Delegation } from '../types.ts';
 
 export default function Dashboard() {
-  const [delegations, setDelegations] = useState<any[]>([]);
+  const [delegations, setDelegations] = useState<Delegation[]>([]);
 
   useEffect(() => {
     getDelegations().then(setDelegations).catch(() => setDelegations([]));

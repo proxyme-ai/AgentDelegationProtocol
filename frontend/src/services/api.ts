@@ -1,3 +1,5 @@
+import type { Agent, Delegation } from '../types.ts';
+
 export const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 export async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
@@ -7,11 +9,11 @@ export async function fetchJSON<T>(url: string, options?: RequestInit): Promise<
 }
 
 export function getAgents() {
-  return fetchJSON('/agents');
+  return fetchJSON<Agent[]>('/agents');
 }
 
 export function createAgent(data: Record<string, unknown>) {
-  return fetchJSON('/agents', {
+  return fetchJSON<Agent>('/agents', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -19,13 +21,13 @@ export function createAgent(data: Record<string, unknown>) {
 }
 
 export function getDelegations() {
-  return fetchJSON('/delegations');
+  return fetchJSON<Delegation[]>('/delegations');
 }
 
 export function approveDelegation(id: string) {
-  return fetchJSON(`/delegations/${id}/approve`, { method: 'POST' });
+  return fetchJSON<Delegation>(`/delegations/${id}/approve`, { method: 'POST' });
 }
 
 export function denyDelegation(id: string) {
-  return fetchJSON(`/delegations/${id}/deny`, { method: 'POST' });
+  return fetchJSON<Delegation>(`/delegations/${id}/deny`, { method: 'POST' });
 }
