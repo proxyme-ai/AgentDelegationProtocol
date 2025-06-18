@@ -8,4 +8,3 @@ pytest==8.2.0
 # Frontend dependencies managed via npm
 # react, react-dom, react-router-dom, react-markdown
 # E2E tests use Playwright via npm (@playwright/test)
-daisyui==npm
