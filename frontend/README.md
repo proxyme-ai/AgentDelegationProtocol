@@ -52,3 +52,19 @@ export default tseslint.config({
   },
 })
 ```
+
+## Running Playwright tests
+
+Install dependencies and browsers:
+
+```bash
+npm install
+npx playwright install
+```
+
+Run the tests:
+
+```bash
+npm run test:e2e
+```
+
