@@ -21,12 +21,12 @@ export default function NewAgentForm() {
     <form onSubmit={submit} className="p-4 space-y-2">
       <h1 className="text-xl font-bold">New Agent</h1>
       <input
-        className="border p-2 w-full"
+        className="input input-bordered w-full"
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Agent name"
       />
-      <button className="bg-primary text-white px-4 py-2 rounded" type="submit">
+      <button className="btn btn-primary" type="submit">
         Create
       </button>
       {message && <p>{message}</p>}

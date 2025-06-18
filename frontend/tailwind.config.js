@@ -9,5 +9,14 @@ export default {
       }
     }
   },
-  plugins: [],
+  plugins: [require('daisyui')],
+  daisyui: {
+    themes: [
+      {
+        light: {
+          primary: '#1d4ed8'
+        }
+      }
+    ]
+  }
 };

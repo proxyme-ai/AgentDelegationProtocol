@@ -10,14 +10,18 @@ export default function Dashboard() {
   }, []);
 
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
-      <h2 className="font-semibold mb-2">Pending Delegations</h2>
-      <ul className="list-disc pl-4">
+    <div className="p-4 space-y-4">
+      <h1 className="text-2xl font-bold">Dashboard</h1>
+      <h2 className="font-semibold">Pending Delegations</h2>
+      <div className="space-y-2">
         {delegations.map((d) => (
-          <li key={d.id}>{d.agent} - {d.status}</li>
+          <div key={d.id} className="card bg-base-100 shadow">
+            <div className="card-body p-4 flex-row items-center justify-between">
+              <span>{d.agent} - {d.status}</span>
+            </div>
+          </div>
         ))}
-      </ul>
+      </div>
     </div>
   );
 }
