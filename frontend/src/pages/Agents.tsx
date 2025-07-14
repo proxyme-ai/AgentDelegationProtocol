@@ -7,7 +7,7 @@ import CreateAgentModal from '../components/CreateAgentModal';
 import BulkActionsBar from '../components/BulkActionsBar';
 import SearchAndFilter from '../components/SearchAndFilter';
 import Loading from '../components/Loading';
-import Toast from '../components/Toast';
+import { useToast, ToastContainer } from '../components/Toast';
 
 export default function Agents() {
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -17,7 +17,7 @@ export default function Agents() {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [filters, setFilters] = useState<AgentFilters>({});
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const toast = useToast();
 
   // Load agents
   const loadAgents = async () => {
@@ -62,7 +62,7 @@ export default function Agents() {
   const handleAgentCreated = (agent: Agent) => {
     setAgents(prev => [agent, ...prev]);
     setShowCreateModal(false);
-    setToast({ message: 'Agent created successfully', type: 'success' });
+    toast.success('Agent created successfully');
   };
 
   // Handle agent update
@@ -71,7 +71,7 @@ export default function Agents() {
       agent.id === updatedAgent.id ? updatedAgent : agent
     ));
     setSelectedAgent(updatedAgent);
-    setToast({ message: 'Agent updated successfully', type: 'success' });
+    toast.success('Agent updated successfully');
   };
 
   // Handle agent deletion
@@ -83,7 +83,7 @@ export default function Agents() {
       newSelected.delete(agentId);
       return newSelected;
     });
-    setToast({ message: 'Agent deleted successfully', type: 'success' });
+    toast.success('Agent deleted successfully');
   };
 
   // Handle bulk operations
@@ -96,24 +96,24 @@ export default function Agents() {
           await Promise.all(selectedIds.map(id => 
             agentAPI.update(id, { status: 'active' })
           ));
-          setToast({ message: `${selectedIds.length} agents activated`, type: 'success' });
+          toast.success(`${selectedIds.length} agents activated`);
           break;
         case 'deactivate':
           await Promise.all(selectedIds.map(id => 
             agentAPI.update(id, { status: 'inactive' })
           ));
-          setToast({ message: `${selectedIds.length} agents deactivated`, type: 'success' });
+          toast.success(`${selectedIds.length} agents deactivated`);
           break;
         case 'suspend':
           await Promise.all(selectedIds.map(id => 
             agentAPI.update(id, { status: 'suspended' })
           ));
-          setToast({ message: `${selectedIds.length} agents suspended`, type: 'success' });
+          toast.success(`${selectedIds.length} agents suspended`);
           break;
         case 'delete':
           if (confirm(`Are you sure you want to delete ${selectedIds.length} agents?`)) {
             await Promise.all(selectedIds.map(id => agentAPI.delete(id)));
-            setToast({ message: `${selectedIds.length} agents deleted`, type: 'success' });
+            toast.success(`${selectedIds.length} agents deleted`);
           }
           break;
       }
@@ -121,10 +121,10 @@ export default function Agents() {
       setSelectedAgents(new Set());
       loadAgents();
     } catch (err) {
-      setToast({ 
-        message: err instanceof Error ? err.message : 'Bulk operation failed', 
-        type: 'error' 
-      });
+      toast.error(
+        'Bulk operation failed',
+        err instanceof Error ? err.message : 'An unexpected error occurred'
+      );
     }
   };
 
@@ -253,13 +253,7 @@ export default function Agents() {
       )}
 
       {/* Toast Notifications */}
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
+      <ToastContainer messages={toast.messages} onClose={toast.removeToast} />
     </div>
   );
 }

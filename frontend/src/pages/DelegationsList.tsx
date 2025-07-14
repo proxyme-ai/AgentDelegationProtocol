@@ -3,9 +3,8 @@ import { delegationAPI } from '../services/api';
 import type { Delegation, DelegationFilters } from '../types';
 import DelegationCard from '../components/DelegationCard';
 import DelegationDetailModal from '../components/DelegationDetailModal';
-import DelegationFilters from '../components/DelegationFilters';
+import DelegationFiltersComponent from '../components/DelegationFilters';
 import Loading from '../components/Loading';
-import DelegationFilters from '../components/DelegationFilters';
 
 export default function DelegationsList() {
   const [delegations, setDelegations] = useState<Delegation[]>([]);
@@ -16,7 +15,7 @@ export default function DelegationsList() {
   const [selectedDelegation, setSelectedDelegation] = useState<Delegation | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'pending' | 'active' | 'history'>('pending');
-  const [refreshInterval, setRefreshInterval] = useState<NodeJS.Timeout | null>(null);
+  const [refreshInterval, setRefreshInterval] = useState<number | null>(null);
 
   const loadDelegations = useCallback(async () => {
     try {
@@ -195,7 +194,7 @@ export default function DelegationsList() {
       </div>
 
       {/* Filters */}
-      <DelegationFilters
+      <DelegationFiltersComponent
         filters={filters}
         onFiltersChange={handleFiltersChange}
         onClearFilters={handleClearFilters}
