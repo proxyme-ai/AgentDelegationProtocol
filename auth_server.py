@@ -222,5 +222,29 @@ def introspect():
     except jwt.InvalidTokenError:
         return jsonify({"active": False})
 
+@app.route('/health')
+def health():
+    """Health check endpoint."""
+    return jsonify({
+        "status": "healthy",
+        "service": "authorization-server",
+        "version": "1.0.0",
+        "timestamp": datetime.utcnow().isoformat()
+    })
+
+def main():
+    """Main entry point for the authorization server."""
+    from config import config
+    from logging_config import get_logger
+    
+    logger = get_logger('auth_server')
+    logger.info(f"Starting Authorization Server on port {config.auth_server_port}")
+    
+    app.run(
+        host=config.auth_server_host,
+        port=config.auth_server_port,
+        debug=False
+    )
+
 if __name__ == '__main__':
-    app.run(port=5000)
+    main()
