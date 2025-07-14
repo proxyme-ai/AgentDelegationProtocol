@@ -2,7 +2,11 @@
 
 import os
 from typing import Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 @dataclass
@@ -10,7 +14,7 @@ class Config:
     """Application configuration."""
     
     # JWT Configuration
-    jwt_secret: str = os.environ.get("JWT_SECRET", "jwt-signing-secret")
+    jwt_secret: str = os.environ.get("JWT_SECRET", "super-secure-jwt-signing-secret-key-for-agent-delegation-protocol-demo")
     jwt_algorithm: str = "HS256"
     
     # Token Expiry (in minutes)
@@ -36,7 +40,7 @@ class Config:
     redirect_uri: str = os.environ.get("REDIRECT_URI", "http://localhost:5000/callback")
     
     # Security Settings
-    cors_origins: list = os.environ.get("CORS_ORIGINS", "").split(",") if os.environ.get("CORS_ORIGINS") else []
+    cors_origins: list = field(default_factory=lambda: os.environ.get("CORS_ORIGINS", "").split(",") if os.environ.get("CORS_ORIGINS") else [])
     rate_limit_per_minute: int = int(os.environ.get("RATE_LIMIT_PER_MINUTE", "60"))
     
     # Logging
