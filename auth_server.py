@@ -11,6 +11,8 @@ import hashlib
 import base64
 from config import config
 from logging_config import get_logger
+from storage_manager import storage_manager
+from data_models import Agent, AgentStatus
 
 app = Flask(__name__)
 
@@ -23,51 +25,11 @@ logger = get_logger('auth_server')
 
 # Use configuration values
 JWT_SECRET = config.jwt_secret
-AGENTS_FILE = config.agents_file
-USERS_FILE = config.users_file
 KEYCLOAK_URL = config.keycloak_url
 KEYCLOAK_REALM = config.keycloak_realm
 KEYCLOAK_CLIENT_ID = config.keycloak_client_id
 KEYCLOAK_CLIENT_SECRET = config.keycloak_client_secret
 REDIRECT_URI = config.redirect_uri
-
-DEFAULT_AGENT = {"agent-client-id": {"name": "CalendarAgent"}}
-DEFAULT_USER = {"alice": "password123"}
-
-
-def load_agents():
-    if os.path.exists(AGENTS_FILE):
-        with open(AGENTS_FILE) as f:
-            return json.load(f)
-    # initialize file with default agent if missing
-    with open(AGENTS_FILE, "w") as f:
-        json.dump(DEFAULT_AGENT, f)
-    return DEFAULT_AGENT.copy()
-
-
-def save_agents(data):
-    with open(AGENTS_FILE, "w") as f:
-        json.dump(data, f)
-
-
-def load_users():
-    if os.path.exists(USERS_FILE):
-        with open(USERS_FILE) as f:
-            return json.load(f)
-    with open(USERS_FILE, "w") as f:
-        json.dump(DEFAULT_USER, f)
-    return DEFAULT_USER.copy()
-
-
-def save_users(data):
-    with open(USERS_FILE, "w") as f:
-        json.dump(data, f)
-
-
-AGENTS = load_agents()
-USERS = load_users()
-ACTIVE_TOKENS = []
-REVOKED_TOKENS = set()
 
 
 @app.route('/register', methods=['POST'])
@@ -97,30 +59,39 @@ def register():
                 'timestamp': datetime.utcnow().isoformat()
             }), 400
         
-        if client_id in AGENTS:
+        # Check if agent already exists
+        if storage_manager.get_agent(client_id):
             return jsonify({
                 'error': 'Agent already exists',
                 'client_id': client_id,
                 'timestamp': datetime.utcnow().isoformat()
             }), 409
 
-        AGENTS[client_id] = {
+        # Create agent using storage manager
+        agent_data = {
+            'id': client_id,
             'name': name,
             'description': data.get('description', ''),
             'scopes': data.get('scopes', []),
-            'status': 'active',
-            'created_at': datetime.utcnow().isoformat(),
-            'delegation_count': 0
+            'status': AgentStatus.ACTIVE.value
         }
-        save_agents(AGENTS)
+        
+        agent = storage_manager.create_agent(agent_data)
         
         logger.info(f"Agent registered: {client_id}")
         return jsonify({
             'status': 'registered',
             'client_id': client_id,
+            'agent': agent.to_dict(),
             'timestamp': datetime.utcnow().isoformat()
         }), 201
         
+    except ValueError as e:
+        return jsonify({
+            'error': 'Validation error',
+            'message': str(e),
+            'timestamp': datetime.utcnow().isoformat()
+        }), 400
     except Exception as e:
         logger.error(f"Error in register endpoint: {str(e)}")
         return jsonify({
@@ -157,15 +128,20 @@ def register_user():
                 'timestamp': datetime.utcnow().isoformat()
             }), 400
         
-        if username in USERS:
+        # Check if user already exists using storage manager
+        if storage_manager.get_user(username):
             return jsonify({
                 'error': 'User already exists',
                 'username': username,
                 'timestamp': datetime.utcnow().isoformat()
             }), 409
         
-        USERS[username] = password
-        save_users(USERS)
+        # Create user using storage manager
+        if not storage_manager.create_user(username, password):
+            return jsonify({
+                'error': 'Failed to create user',
+                'timestamp': datetime.utcnow().isoformat()
+            }), 500
         
         logger.info(f"User registered: {username}")
         return jsonify({
@@ -189,7 +165,8 @@ def authorize():
     code_challenge = request.args.get('code_challenge')
     code_challenge_method = request.args.get('code_challenge_method', 'plain')
 
-    if client_id not in AGENTS:
+    # Check if agent exists using storage manager
+    if not storage_manager.get_agent(client_id):
         return "Agent not registered", 403
 
     if KEYCLOAK_URL:
@@ -204,7 +181,7 @@ def authorize():
         return redirect(f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/auth?{query}")
 
     user = request.args.get('user')
-    if user not in USERS:
+    if not storage_manager.get_user(user):
         return "User not found", 403
 
     delegation = {
@@ -235,7 +212,8 @@ def callback():
     else:
         client_id, scope = state, ''
 
-    if client_id not in AGENTS:
+    # Check if agent exists using storage manager
+    if not storage_manager.get_agent(client_id):
         return "Agent not registered", 403
 
     token_res = requests.post(
@@ -273,6 +251,10 @@ def token():
     except jwt.InvalidTokenError:
         return "Invalid delegation token", 403
 
+    # Check if token is revoked
+    if storage_manager.is_token_revoked(token_str):
+        return "Delegation token revoked", 403
+
     challenge = delegation.get("code_challenge")
     challenge_method = delegation.get("code_challenge_method", "plain")
     code_verifier = request.form.get("code_verifier")
@@ -288,6 +270,8 @@ def token():
             if code_verifier != challenge:
                 return "Invalid code verifier", 403
 
+    # Get current active token count for JTI
+    active_tokens = storage_manager.get_active_tokens()
     access_claim = {
         "iss": config.auth_server_url,
         "sub": delegation['delegator'],
@@ -295,16 +279,19 @@ def token():
         "scope": delegation['scope'],
         "exp": datetime.utcnow() + timedelta(minutes=config.access_token_expiry),
         "iat": datetime.utcnow(),
-        "jti": f"token-{len(ACTIVE_TOKENS)+1}"
+        "jti": f"token-{len(active_tokens)+1}"
     }
     access_token = jwt.encode(access_claim, JWT_SECRET, algorithm="HS256")
-    ACTIVE_TOKENS.append(access_token)
+    
+    # Add token to storage manager
+    storage_manager.add_active_token(access_token)
+    
     return jsonify({"access_token": access_token, "token_type": "Bearer"})
 
 @app.route('/revoke', methods=['POST'])
 def revoke():
     token = request.form.get('token')
-    REVOKED_TOKENS.add(token)
+    storage_manager.revoke_token(token)
     return jsonify({"status": "revoked"})
 
 @app.route('/introspect', methods=['POST'])
@@ -312,7 +299,7 @@ def introspect():
     token = request.form.get('token')
     try:
         decoded = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-        if token in REVOKED_TOKENS:
+        if storage_manager.is_token_revoked(token):
             return jsonify({"active": False})
         return jsonify({"active": True, **decoded})
     except jwt.InvalidTokenError:

@@ -13,9 +13,11 @@ import uuid
 import functools
 from typing import Dict, List, Optional, Any
 import logging
-from dataclasses import dataclass, asdict
+from dataclasses import asdict
 from config import config
 from logging_config import get_logger
+from storage_manager import storage_manager
+from data_models import Agent, Delegation, TokenInfo, SystemActivity, AgentStatus, DelegationStatus
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -26,107 +28,6 @@ CORS(app, origins=cors_origins, supports_credentials=True)
 
 # Initialize logger
 logger = get_logger('api_server')
-
-# Global data stores
-AGENTS = {}
-USERS = {}
-DELEGATIONS = {}
-ACTIVE_TOKENS = []
-REVOKED_TOKENS = set()
-SYSTEM_LOGS = []
-
-@dataclass
-class Agent:
-    """Enhanced Agent data model."""
-    id: str
-    name: str
-    description: str = ""
-    scopes: List[str] = None
-    status: str = "active"  # active, inactive, suspended
-    created_at: str = ""
-    last_used: Optional[str] = None
-    delegation_count: int = 0
-    
-    def __post_init__(self):
-        if self.scopes is None:
-            self.scopes = []
-        if not self.created_at:
-            self.created_at = datetime.utcnow().isoformat()
-
-@dataclass
-class Delegation:
-    """Enhanced Delegation data model."""
-    id: str
-    agent_id: str
-    agent_name: str
-    user_id: str
-    scopes: List[str]
-    status: str = "pending"  # pending, approved, denied, expired, revoked
-    created_at: str = ""
-    approved_at: Optional[str] = None
-    expires_at: str = ""
-    delegation_token: Optional[str] = None
-    access_token: Optional[str] = None
-    
-    def __post_init__(self):
-        if not self.created_at:
-            self.created_at = datetime.utcnow().isoformat()
-        if not self.expires_at:
-            self.expires_at = (datetime.utcnow() + timedelta(minutes=config.delegation_token_expiry)).isoformat()
-
-def load_data():
-    """Load data from JSON files."""
-    global AGENTS, USERS
-    
-    # Load agents
-    if os.path.exists(config.agents_file):
-        with open(config.agents_file) as f:
-            agent_data = json.load(f)
-            # Convert old format to new format
-            for agent_id, agent_info in agent_data.items():
-                if isinstance(agent_info, dict) and 'name' in agent_info:
-                    AGENTS[agent_id] = Agent(
-                        id=agent_id,
-                        name=agent_info['name'],
-                        description=agent_info.get('description', ''),
-                        scopes=agent_info.get('scopes', []),
-                        status=agent_info.get('status', 'active'),
-                        created_at=agent_info.get('created_at', datetime.utcnow().isoformat()),
-                        last_used=agent_info.get('last_used'),
-                        delegation_count=agent_info.get('delegation_count', 0)
-                    )
-    
-    # Load users
-    if os.path.exists(config.users_file):
-        with open(config.users_file) as f:
-            USERS.update(json.load(f))
-
-def save_data():
-    """Save data to JSON files."""
-    # Save agents
-    agent_data = {}
-    for agent_id, agent in AGENTS.items():
-        agent_data[agent_id] = asdict(agent)
-    
-    with open(config.agents_file, 'w') as f:
-        json.dump(agent_data, f, indent=2)
-    
-    # Save users
-    with open(config.users_file, 'w') as f:
-        json.dump(USERS, f, indent=2)
-
-def log_activity(action: str, details: Dict[str, Any], user: str = None):
-    """Log system activity."""
-    log_entry = {
-        "timestamp": datetime.utcnow().isoformat(),
-        "action": action,
-        "details": details,
-        "user": user
-    }
-    SYSTEM_LOGS.append(log_entry)
-    # Keep only last 1000 logs
-    if len(SYSTEM_LOGS) > 1000:
-        SYSTEM_LOGS.pop(0)
 
 def validate_json(required_fields: List[str]):
     """Decorator to validate JSON request data."""
@@ -174,9 +75,6 @@ def handle_errors(f):
             }), 500
     return wrapper
 
-# Initialize data on startup
-load_data()
-
 # ============================================================================
 # AGENT MANAGEMENT ENDPOINTS
 # ============================================================================
@@ -186,25 +84,14 @@ load_data()
 def list_agents():
     """List all registered agents with filtering and search."""
     status_filter = request.args.get('status')
-    search = request.args.get('search', '').lower()
+    search = request.args.get('search', '')
     
-    agents = []
-    for agent in AGENTS.values():
-        agent_dict = asdict(agent)
-        
-        # Apply status filter
-        if status_filter and agent.status != status_filter:
-            continue
-        
-        # Apply search filter
-        if search and search not in agent.name.lower() and search not in agent.description.lower():
-            continue
-        
-        agents.append(agent_dict)
+    agents = storage_manager.list_agents(status_filter=status_filter, search=search)
+    agent_dicts = [agent.to_dict() for agent in agents]
     
     return jsonify({
-        "agents": agents,
-        "total": len(agents),
+        "agents": agent_dicts,
+        "total": len(agent_dicts),
         "timestamp": datetime.utcnow().isoformat()
     })
 
@@ -215,47 +102,27 @@ def create_agent():
     """Register a new agent."""
     data = g.json_data
     
-    # Generate unique agent ID
-    agent_id = data.get('id') or f"agent-{uuid.uuid4().hex[:8]}"
-    
-    if agent_id in AGENTS:
-        return jsonify({"error": "Agent ID already exists"}), 409
-    
-    # Create new agent
-    agent = Agent(
-        id=agent_id,
-        name=data['name'],
-        description=data.get('description', ''),
-        scopes=data.get('scopes', []),
-        status=data.get('status', 'active')
-    )
-    
-    AGENTS[agent_id] = agent
-    save_data()
-    
-    log_activity("agent_created", {"agent_id": agent_id, "name": agent.name})
+    # Create agent using storage manager
+    agent = storage_manager.create_agent(data)
     
     return jsonify({
         "message": "Agent created successfully",
-        "agent": asdict(agent)
+        "agent": agent.to_dict()
     }), 201
 
 @app.route('/api/agents/<agent_id>', methods=['GET'])
 @handle_errors
 def get_agent(agent_id):
     """Get agent details."""
-    if agent_id not in AGENTS:
+    agent = storage_manager.get_agent(agent_id)
+    if not agent:
         return jsonify({"error": "Agent not found"}), 404
     
-    agent = AGENTS[agent_id]
-    agent_dict = asdict(agent)
+    agent_dict = agent.to_dict()
     
     # Add delegation history
-    agent_delegations = [
-        asdict(delegation) for delegation in DELEGATIONS.values()
-        if delegation.agent_id == agent_id
-    ]
-    agent_dict['delegations'] = agent_delegations
+    agent_delegations = storage_manager.list_delegations(agent_id_filter=agent_id)
+    agent_dict['delegations'] = [delegation.to_dict() for delegation in agent_delegations]
     
     return jsonify(agent_dict)
 
@@ -264,44 +131,22 @@ def get_agent(agent_id):
 @handle_errors
 def update_agent(agent_id):
     """Update agent details."""
-    if agent_id not in AGENTS:
-        return jsonify({"error": "Agent not found"}), 404
-    
     data = g.json_data
-    agent = AGENTS[agent_id]
     
-    # Update allowed fields
-    if 'name' in data:
-        agent.name = data['name']
-    if 'description' in data:
-        agent.description = data['description']
-    if 'scopes' in data:
-        agent.scopes = data['scopes']
-    if 'status' in data:
-        if data['status'] not in ['active', 'inactive', 'suspended']:
-            return jsonify({"error": "Invalid status"}), 400
-        agent.status = data['status']
-    
-    save_data()
-    log_activity("agent_updated", {"agent_id": agent_id, "changes": data})
+    # Update agent using storage manager
+    agent = storage_manager.update_agent(agent_id, data)
     
     return jsonify({
         "message": "Agent updated successfully",
-        "agent": asdict(agent)
+        "agent": agent.to_dict()
     })
 
 @app.route('/api/agents/<agent_id>', methods=['DELETE'])
 @handle_errors
 def delete_agent(agent_id):
     """Delete an agent."""
-    if agent_id not in AGENTS:
+    if not storage_manager.delete_agent(agent_id):
         return jsonify({"error": "Agent not found"}), 404
-    
-    agent_name = AGENTS[agent_id].name
-    del AGENTS[agent_id]
-    save_data()
-    
-    log_activity("agent_deleted", {"agent_id": agent_id, "name": agent_name})
     
     return jsonify({"message": "Agent deleted successfully"})
 
@@ -317,26 +162,17 @@ def list_delegations():
     agent_id_filter = request.args.get('agent_id')
     user_id_filter = request.args.get('user_id')
     
-    delegations = []
-    for delegation in DELEGATIONS.values():
-        delegation_dict = asdict(delegation)
-        
-        # Apply filters
-        if status_filter and delegation.status != status_filter:
-            continue
-        if agent_id_filter and delegation.agent_id != agent_id_filter:
-            continue
-        if user_id_filter and delegation.user_id != user_id_filter:
-            continue
-        
-        delegations.append(delegation_dict)
+    delegations = storage_manager.list_delegations(
+        status_filter=status_filter,
+        agent_id_filter=agent_id_filter,
+        user_id_filter=user_id_filter
+    )
     
-    # Sort by created_at descending
-    delegations.sort(key=lambda x: x['created_at'], reverse=True)
+    delegation_dicts = [delegation.to_dict() for delegation in delegations]
     
     return jsonify({
-        "delegations": delegations,
-        "total": len(delegations),
+        "delegations": delegation_dicts,
+        "total": len(delegation_dicts),
         "timestamp": datetime.utcnow().isoformat()
     })
 
@@ -347,129 +183,60 @@ def create_delegation():
     """Create a new delegation request."""
     data = g.json_data
     
-    agent_id = data['agent_id']
-    user_id = data['user_id']
-    
-    # Validate agent exists
-    if agent_id not in AGENTS:
-        return jsonify({"error": "Agent not found"}), 404
-    
-    # Validate user exists
-    if user_id not in USERS:
-        return jsonify({"error": "User not found"}), 404
-    
-    # Create delegation
-    delegation_id = f"delegation-{uuid.uuid4().hex[:8]}"
-    delegation = Delegation(
-        id=delegation_id,
-        agent_id=agent_id,
-        agent_name=AGENTS[agent_id].name,
-        user_id=user_id,
-        scopes=data['scopes']
-    )
-    
-    DELEGATIONS[delegation_id] = delegation
-    log_activity("delegation_created", {
-        "delegation_id": delegation_id,
-        "agent_id": agent_id,
-        "user_id": user_id,
-        "scopes": data['scopes']
-    })
+    # Create delegation using storage manager
+    delegation = storage_manager.create_delegation(data)
     
     return jsonify({
         "message": "Delegation created successfully",
-        "delegation": asdict(delegation)
+        "delegation": delegation.to_dict()
     }), 201
 
 @app.route('/api/delegations/<delegation_id>', methods=['GET'])
 @handle_errors
 def get_delegation(delegation_id):
     """Get delegation details."""
-    if delegation_id not in DELEGATIONS:
+    delegation = storage_manager.get_delegation(delegation_id)
+    if not delegation:
         return jsonify({"error": "Delegation not found"}), 404
     
-    delegation = DELEGATIONS[delegation_id]
-    return jsonify(asdict(delegation))
+    return jsonify(delegation.to_dict())
 
 @app.route('/api/delegations/<delegation_id>/approve', methods=['PUT'])
 @handle_errors
 def approve_delegation(delegation_id):
     """Approve a delegation request."""
-    if delegation_id not in DELEGATIONS:
-        return jsonify({"error": "Delegation not found"}), 404
-    
-    delegation = DELEGATIONS[delegation_id]
-    
-    if delegation.status != 'pending':
-        return jsonify({"error": "Delegation is not pending"}), 400
-    
-    # Generate delegation token
-    delegation_claims = {
-        "iss": config.auth_server_url,
-        "sub": delegation.agent_id,
-        "delegator": delegation.user_id,
-        "scope": delegation.scopes,
-        "exp": datetime.utcnow() + timedelta(minutes=config.delegation_token_expiry),
-        "iat": datetime.utcnow(),
-        "delegation_id": delegation_id
-    }
-    
-    delegation_token = jwt.encode(delegation_claims, config.jwt_secret, algorithm=config.jwt_algorithm)
-    
-    # Update delegation
-    delegation.status = 'approved'
-    delegation.approved_at = datetime.utcnow().isoformat()
-    delegation.delegation_token = delegation_token
-    
-    # Update agent delegation count
-    if delegation.agent_id in AGENTS:
-        AGENTS[delegation.agent_id].delegation_count += 1
-        AGENTS[delegation.agent_id].last_used = datetime.utcnow().isoformat()
-    
-    log_activity("delegation_approved", {"delegation_id": delegation_id})
-    
-    return jsonify({
-        "message": "Delegation approved successfully",
-        "delegation": asdict(delegation)
-    })
+    try:
+        delegation_token = storage_manager.approve_delegation(delegation_id)
+        delegation = storage_manager.get_delegation(delegation_id)
+        
+        return jsonify({
+            "message": "Delegation approved successfully",
+            "delegation": delegation.to_dict(),
+            "delegation_token": delegation_token
+        })
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
 
 @app.route('/api/delegations/<delegation_id>/deny', methods=['PUT'])
 @handle_errors
 def deny_delegation(delegation_id):
     """Deny a delegation request."""
-    if delegation_id not in DELEGATIONS:
+    if not storage_manager.deny_delegation(delegation_id):
         return jsonify({"error": "Delegation not found"}), 404
     
-    delegation = DELEGATIONS[delegation_id]
-    
-    if delegation.status != 'pending':
-        return jsonify({"error": "Delegation is not pending"}), 400
-    
-    delegation.status = 'denied'
-    log_activity("delegation_denied", {"delegation_id": delegation_id})
+    delegation = storage_manager.get_delegation(delegation_id)
     
     return jsonify({
         "message": "Delegation denied successfully",
-        "delegation": asdict(delegation)
+        "delegation": delegation.to_dict()
     })
 
 @app.route('/api/delegations/<delegation_id>', methods=['DELETE'])
 @handle_errors
 def revoke_delegation(delegation_id):
     """Revoke a delegation."""
-    if delegation_id not in DELEGATIONS:
+    if not storage_manager.revoke_delegation(delegation_id):
         return jsonify({"error": "Delegation not found"}), 404
-    
-    delegation = DELEGATIONS[delegation_id]
-    delegation.status = 'revoked'
-    
-    # Revoke associated tokens
-    if delegation.delegation_token:
-        REVOKED_TOKENS.add(delegation.delegation_token)
-    if delegation.access_token:
-        REVOKED_TOKENS.add(delegation.access_token)
-    
-    log_activity("delegation_revoked", {"delegation_id": delegation_id})
     
     return jsonify({"message": "Delegation revoked successfully"})
 
@@ -481,27 +248,23 @@ def revoke_delegation(delegation_id):
 @handle_errors
 def list_active_tokens():
     """List active tokens."""
-    active_tokens = []
+    active_tokens = storage_manager.get_active_tokens()
     
-    for token in ACTIVE_TOKENS:
-        if token not in REVOKED_TOKENS:
-            try:
-                decoded = jwt.decode(token, config.jwt_secret, algorithms=[config.jwt_algorithm])
-                if datetime.utcfromtimestamp(decoded['exp']) > datetime.utcnow():
-                    active_tokens.append({
-                        "token": token[:20] + "...",  # Truncated for security
-                        "type": "access" if "actor" in decoded else "delegation",
-                        "subject": decoded.get('sub'),
-                        "expires_at": datetime.utcfromtimestamp(decoded['exp']).isoformat(),
-                        "issued_at": datetime.utcfromtimestamp(decoded['iat']).isoformat(),
-                        "scopes": decoded.get('scope', [])
-                    })
-            except jwt.InvalidTokenError:
-                continue
+    token_dicts = []
+    for token_info in active_tokens:
+        token_dicts.append({
+            "token": token_info.token[:20] + "...",  # Truncated for security
+            "type": token_info.token_type,
+            "subject": token_info.subject,
+            "expires_at": token_info.expires_at,
+            "issued_at": token_info.issued_at,
+            "scopes": token_info.scopes,
+            "time_to_expiry_seconds": token_info.time_to_expiry_seconds
+        })
     
     return jsonify({
-        "active_tokens": active_tokens,
-        "total": len(active_tokens),
+        "active_tokens": token_dicts,
+        "total": len(token_dicts),
         "timestamp": datetime.utcnow().isoformat()
     })
 
@@ -512,48 +275,11 @@ def introspect_token():
     """Detailed token analysis."""
     token = g.json_data['token']
     
-    try:
-        # Decode without verification first to get claims
-        unverified = jwt.decode(token, options={"verify_signature": False})
-        
-        # Then verify
-        verified = jwt.decode(token, config.jwt_secret, algorithms=[config.jwt_algorithm])
-        
-        is_revoked = token in REVOKED_TOKENS
-        is_expired = datetime.utcfromtimestamp(verified['exp']) <= datetime.utcnow()
-        is_valid = not is_revoked and not is_expired
-        
-        time_to_expiry = datetime.utcfromtimestamp(verified['exp']) - datetime.utcnow()
-        
-        return jsonify({
-            "token_info": {
-                "type": "access" if "actor" in verified else "delegation",
-                "claims": verified,
-                "is_valid": is_valid,
-                "is_revoked": is_revoked,
-                "is_expired": is_expired,
-                "expires_at": datetime.utcfromtimestamp(verified['exp']).isoformat(),
-                "issued_at": datetime.utcfromtimestamp(verified['iat']).isoformat(),
-                "time_to_expiry_seconds": int(time_to_expiry.total_seconds()) if not is_expired else 0
-            }
-        })
-        
-    except jwt.ExpiredSignatureError:
-        return jsonify({
-            "token_info": {
-                "claims": unverified,
-                "is_valid": False,
-                "is_expired": True,
-                "error": "Token has expired"
-            }
-        })
-    except jwt.InvalidTokenError as e:
-        return jsonify({
-            "token_info": {
-                "is_valid": False,
-                "error": f"Invalid token: {str(e)}"
-            }
-        }), 400
+    token_info = storage_manager.introspect_token(token)
+    
+    return jsonify({
+        "token_info": token_info.to_dict()
+    })
 
 @app.route('/api/tokens/revoke', methods=['POST'])
 @validate_json(['token'])
@@ -561,9 +287,7 @@ def introspect_token():
 def revoke_token():
     """Revoke a specific token."""
     token = g.json_data['token']
-    REVOKED_TOKENS.add(token)
-    
-    log_activity("token_revoked", {"token_preview": token[:20] + "..."})
+    storage_manager.revoke_token(token)
     
     return jsonify({"message": "Token revoked successfully"})
 
@@ -578,64 +302,37 @@ def run_demo():
     try:
         # Step 1: Get or create demo agent
         demo_agent_id = "demo-agent"
-        if demo_agent_id not in AGENTS:
-            AGENTS[demo_agent_id] = Agent(
-                id=demo_agent_id,
-                name="Demo Agent",
-                description="Agent for demonstration purposes",
-                scopes=["read:data", "write:data"]
-            )
-            save_data()
+        demo_agent = storage_manager.get_agent(demo_agent_id)
+        
+        if not demo_agent:
+            demo_agent = storage_manager.create_agent({
+                'id': demo_agent_id,
+                'name': "Demo Agent",
+                'description': "Agent for demonstration purposes",
+                'scopes': ["read:data", "write:data"]
+            })
         
         # Step 2: Create delegation
-        delegation_id = f"demo-delegation-{uuid.uuid4().hex[:8]}"
-        delegation = Delegation(
-            id=delegation_id,
-            agent_id=demo_agent_id,
-            agent_name="Demo Agent",
-            user_id="alice",
-            scopes=["read:data"]
-        )
-        DELEGATIONS[delegation_id] = delegation
+        delegation = storage_manager.create_delegation({
+            'agent_id': demo_agent_id,
+            'user_id': "alice",
+            'scopes': ["read:data"]
+        })
         
         # Step 3: Auto-approve delegation
-        delegation_claims = {
-            "iss": config.auth_server_url,
-            "sub": demo_agent_id,
-            "delegator": "alice",
-            "scope": ["read:data"],
-            "exp": datetime.utcnow() + timedelta(minutes=config.delegation_token_expiry),
-            "iat": datetime.utcnow(),
-            "delegation_id": delegation_id
-        }
-        delegation_token = jwt.encode(delegation_claims, config.jwt_secret, algorithm=config.jwt_algorithm)
+        delegation_token = storage_manager.approve_delegation(delegation.id)
         
-        delegation.status = 'approved'
-        delegation.approved_at = datetime.utcnow().isoformat()
-        delegation.delegation_token = delegation_token
-        
-        # Step 4: Exchange for access token
-        access_claims = {
-            "iss": config.auth_server_url,
-            "sub": "alice",
-            "actor": demo_agent_id,
-            "scope": ["read:data"],
-            "exp": datetime.utcnow() + timedelta(minutes=config.access_token_expiry),
-            "iat": datetime.utcnow(),
-            "jti": f"demo-token-{len(ACTIVE_TOKENS)+1}"
-        }
-        access_token = jwt.encode(access_claims, config.jwt_secret, algorithm=config.jwt_algorithm)
-        ACTIVE_TOKENS.append(access_token)
-        delegation.access_token = access_token
-        
-        log_activity("demo_executed", {"delegation_id": delegation_id})
+        # Step 4: Generate access token from delegation
+        delegation = storage_manager.get_delegation(delegation.id)
+        access_token = delegation.generate_access_token()
+        storage_manager.add_active_token(access_token)
         
         return jsonify({
             "demo_result": {
                 "step": "complete",
                 "delegation_token": delegation_token,
                 "access_token": access_token,
-                "delegation_id": delegation_id,
+                "delegation_id": delegation.id,
                 "agent_id": demo_agent_id,
                 "user_id": "alice",
                 "scopes": ["read:data"],
@@ -726,22 +423,14 @@ def run_simulation(scenario_id):
 @handle_errors
 def system_status():
     """Get system health and statistics."""
-    active_token_count = len([t for t in ACTIVE_TOKENS if t not in REVOKED_TOKENS])
+    stats = storage_manager.get_system_stats()
     
     return jsonify({
         "status": "healthy",
         "service": "api-server",
         "version": "1.0.0",
         "timestamp": datetime.utcnow().isoformat(),
-        "statistics": {
-            "total_agents": len(AGENTS),
-            "active_agents": len([a for a in AGENTS.values() if a.status == 'active']),
-            "total_delegations": len(DELEGATIONS),
-            "pending_delegations": len([d for d in DELEGATIONS.values() if d.status == 'pending']),
-            "active_delegations": len([d for d in DELEGATIONS.values() if d.status == 'approved']),
-            "active_tokens": active_token_count,
-            "revoked_tokens": len(REVOKED_TOKENS)
-        }
+        "statistics": stats.to_dict()
     })
 
 @app.route('/api/logs', methods=['GET'])
@@ -749,7 +438,8 @@ def system_status():
 def get_logs():
     """Get recent system activity logs."""
     limit = min(int(request.args.get('limit', 50)), 100)
-    logs = SYSTEM_LOGS[-limit:] if SYSTEM_LOGS else []
+    activities = storage_manager.get_activities(limit)
+    logs = [activity.to_dict() for activity in activities]
     
     return jsonify({
         "logs": logs,
